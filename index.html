@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Receipt Scanner</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F0F4F8; min-height: 100vh; }
+
+  /* SETUP SCREEN */
+  .setup-screen {
+    max-width: 480px; margin: 40px auto; padding: 24px;
+    background: white; border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  .setup-screen h2 { font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 6px; }
+  .setup-screen p { font-size: 13px; color: #64748B; margin-bottom: 20px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 5px; letter-spacing: 0.05em; }
+  .field input {
+    width: 100%; padding: 11px 14px; font-size: 14px;
+    border: 1.5px solid #E2E8F0; border-radius: 9px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: #3B82F6; }
+  .save-btn {
+    width: 100%; padding: 13px; background: #1E3A5F; color: white;
+    border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
+    cursor: pointer; margin-top: 6px;
+  }
+  .save-btn:hover { background: #163059; }
+  .setup-note { font-size: 11px; color: #94A3B8; margin-top: 12px; text-align: center; }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #1a3a5c 0%, #0f2340 100%);
+    padding: 22px 20px 18px; color: white;
+  }
+  .header-label { font-size: 10px; font-weight: 800; letter-spacing: 0.15em; color: #7EB8F7; margin-bottom: 5px; }
+  .header-title { font-size: 22px; font-weight: 700; }
+  .header-sub { font-size: 13px; color: #93C5FD; margin-top: 3px; }
+  .stats-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .stat-pill { background: rgba(255,255,255,0.12); border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #CBD5E1; }
+  .stat-pill strong { color: white; }
+
+  .body { max-width: 680px; margin: 0 auto; padding: 16px; }
+
+  /* SEARCH */
+  .search-wrap { position: relative; margin-bottom: 14px; }
+  .search-wrap input {
+    width: 100%; padding: 13px 44px; font-size: 15px;
+    border-radius: 12px; border: 1.5px solid #E2E8F0;
+    background: white; outline: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); transition: border-color 0.15s;
+  }
+  .search-wrap input:focus { border-color: #3B82F6; }
+  .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 17px; color: #94A3B8; pointer-events: none; }
+  .search-clear { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 20px; color: #94A3B8; cursor: pointer; display: none; }
+
+  /* UPLOAD */
+  .upload-zone {
+    border: 2px dashed #CBD5E1; border-radius: 14px;
+    padding: 26px 16px; text-align: center;
+    cursor: pointer; background: white; transition: all 0.15s; margin-bottom: 14px;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: #3B82F6; background: #EFF6FF; }
+  .upload-zone.disabled { opacity: 0.5; pointer-events: none; }
+  .upload-icon { font-size: 30px; margin-bottom: 7px; }
+  .upload-label { font-size: 14px; font-weight: 600; color: #334155; }
+  .upload-hint { font-size: 12px; color: #94A3B8; margin-top: 3px; }
+
+  /* PROGRESS */
+  .scan-status { background: white; border-radius: 12px; border: 1px solid #E2E8F0; padding: 14px 16px; margin-bottom: 14px; display: none; }
+  .scan-status-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .scan-status-title { font-size: 13px; font-weight: 600; color: #334155; }
+  .stop-btn { background: #FEE2E2; color: #DC2626; border: none; border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .progress-track { background: #E2E8F0; border-radius: 10px; height: 8px; overflow: hidden; margin-bottom: 8px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #3B82F6, #1D4ED8); border-radius: 10px; transition: width 0.4s; }
+  .scan-counts { display: flex; gap: 16px; font-size: 12px; color: #64748B; flex-wrap: wrap; }
+  .scan-counts .done { color: #16A34A; font-weight: 600; }
+  .scan-counts .fail { color: #DC2626; font-weight: 600; }
+  .scan-counts .size { color: #6366F1; font-weight: 600; }
+
+  /* ACTIONS */
+  .actions-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .results-label { font-size: 12px; color: #64748B; }
+  .btn-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .export-btn { font-size: 12px; font-weight: 600; padding: 7px 14px; background: #1E3A5F; color: white; border: none; border-radius: 8px; cursor: pointer; }
+  .clear-btn { font-size: 12px; color: #EF4444; background: none; border: none; cursor: pointer; text-decoration: underline; }
+  .settings-btn { font-size: 12px; color: #6B7280; background: none; border: none; cursor: pointer; text-decoration: underline; }
+
+  /* CARDS */
+  .receipt-card {
+    background: white; border-radius: 13px; border: 1px solid #E2E8F0;
+    padding: 14px; margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-top { display: flex; gap: 12px; align-items: flex-start; }
+  .receipt-thumb {
+    width: 64px; height: 64px; object-fit: cover;
+    border-radius: 8px; flex-shrink: 0; border: 1px solid #E2E8F0;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .receipt-thumb:hover { opacity: 0.85; }
+  .receipt-body { flex: 1; min-width: 0; }
+  .receipt-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .badge { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 20px; }
+  .badge-scanning { background: #FEF3C7; color: #92400E; }
+  .badge-done { background: #DCFCE7; color: #166534; }
+  .badge-error { background: #FEE2E2; color: #991B1B; }
+  .receipt-date { font-size: 11px; color: #94A3B8; }
+  .fields { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 2px; }
+  .field-item { font-size: 13px; }
+  .field-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #94A3B8; display: block; margin-bottom: 1px; }
+  .field-value { font-weight: 600; color: #1E293B; }
+  .field-value.amount { color: #1D4ED8; }
+  .card-actions { display: flex; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #F1F5F9; flex-wrap: wrap; }
+  .download-btn { font-size: 12px; font-weight: 600; color: #1D4ED8; background: #EFF6FF; border: none; border-radius: 7px; padding: 6px 12px; cursor: pointer; }
+  .download-btn:hover { background: #DBEAFE; }
+  .notes-toggle { font-size: 11px; color: #94A3B8; background: none; border: none; cursor: pointer; padding: 0; }
+  .receipt-delete { margin-left: auto; background: none; border: none; font-size: 20px; color: #CBD5E1; cursor: pointer; }
+  .receipt-delete:hover { color: #EF4444; }
+  .receipt-notes { margin-top: 8px; font-size: 12px; color: #475569; background: #F8FAFC; border-radius: 7px; padding: 7px 9px; display: none; }
+  .retry-btn { font-size: 11px; color: #3B82F6; background: none; border: none; cursor: pointer; padding: 0; margin-top: 4px; text-decoration: underline; }
+
+  /* LIGHTBOX */
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; padding: 20px; }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 80vh; border-radius: 10px; object-fit: contain; }
+  .lightbox-close { position: absolute; top: 16px; right: 20px; color: white; font-size: 32px; cursor: pointer; background: none; border: none; line-height: 1; }
+  .lightbox-download { margin-top: 16px; background: #3B82F6; color: white; border: none; border-radius: 10px; padding: 12px 28px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: #94A3B8; font-size: 14px; }
+  .empty-icon { font-size: 40px; margin-bottom: 10px; }
+  .storage-bar-wrap { background: #E2E8F0; border-radius: 10px; height: 6px; overflow: hidden; margin: 4px 0 2px; }
+  .storage-bar { height: 100%; background: #3B82F6; border-radius: 10px; }
+  .storage-label { font-size: 11px; color: #94A3B8; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1E293B; color: white; font-size: 13px; font-weight: 500; padding: 10px 20px; border-radius: 24px; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 2000; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" style="padding:20px">
+  <div class="setup-screen">
+    <div style="font-size:32px;margin-bottom:12px">🧾</div>
+    <h2>Receipt Scanner Setup</h2>
+    <p>Enter your Supabase credentials to get started. You only need to do this once.</p>
+    <div class="field">
+      <label>SUPABASE PROJECT URL</label>
+      <input type="text" id="setup-url" placeholder="https://xxxx.supabase.co"/>
+    </div>
+    <div class="field">
+      <label>SUPABASE ANON KEY</label>
+      <input type="text" id="setup-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."/>
+    </div>
+    <div class="field">
+      <label>ANTHROPIC API KEY</label>
+      <input type="text" id="setup-anthropic" placeholder="sk-ant-..."/>
+    </div>
+    <button class="save-btn" onclick="saveConfig()">Save & Continue →</button>
+    <p class="setup-note">Your keys are saved in your browser only — never sent anywhere except to their respective services.</p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app" style="display:none">
+  <div class="header">
+    <div style="max-width:680px;margin:0 auto">
+      <div class="header-label">RECEIPT SCANNER</div>
+      <div class="header-title">Find any receipt instantly</div>
+      <div class="header-sub">Search by sender, receiver, or amount</div>
+      <div class="stats-row">
+        <div class="stat-pill"><strong id="stat-total">0</strong> receipts</div>
+        <div class="stat-pill" id="stat-storage-pill">
+          <strong id="stat-storage">0 MB</strong> used
+        </div>
+      </div>
+      <div style="margin-top:8px;max-width:200px">
+        <div class="storage-bar-wrap"><div class="storage-bar" id="storage-bar" style="width:0%"></div></div>
+        <div class="storage-label">of 500 MB free storage</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search" placeholder="Search by name, amount, date…" oninput="onSearch(this.value)"/>
+      <button class="search-clear" id="search-clear" onclick="clearSearch()">×</button>
+    </div>
+
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()"
+      ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+      <div class="upload-icon">📄</div>
+      <div class="upload-label" id="upload-label">Tap to upload receipts</div>
+      <div class="upload-hint">JPG, PNG — select multiple at once • Auto-compressed before upload</div>
+    </div>
+    <input type="file" id="file-input" multiple accept="image/*" style="display:none" onchange="handleFiles(this.files)"/>
+
+    <div class="scan-status" id="scan-status">
+      <div class="scan-status-top">
+        <span class="scan-status-title" id="scan-title">Scanning…</span>
+        <button class="stop-btn" onclick="stopScan()">Stop</button>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="scan-counts">
+        <span id="scan-progress-text">0 of 0</span>
+        <span class="done" id="scan-done">✓ 0 done</span>
+        <span class="fail" id="scan-fail" style="display:none">✗ 0 failed</span>
+        <span class="size" id="scan-size">0 KB uploaded</span>
+      </div>
+    </div>
+
+    <div class="actions-row" id="actions-row" style="display:none">
+      <div class="results-label" id="results-label"></div>
+      <div class="btn-group">
+        <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+        <button class="settings-btn" onclick="showSetup()">⚙ Settings</button>
+        <button class="clear-btn" onclick="clearAll()">Delete all</button>
+      </div>
+    </div>
+
+    <div id="receipt-list"></div>
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🧾</div>
+      <div>Upload your first receipt to get started</div>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <img id="lightbox-img" src="" alt="Receipt"/>
+  <button class="lightbox-download" onclick="downloadLightboxImage()">⬇ Download Image</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+let SUPABASE_URL = '';
+let SUPABASE_KEY = '';
+let ANTHROPIC_KEY = '';
+const CFG_KEY = 'receipt-scanner-config-v1';
+const BUCKET = 'receipts';
+const TABLE = 'receipts';
+
+function loadConfig() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+    SUPABASE_URL = c.url || '';
+    SUPABASE_KEY = c.key || '';
+    ANTHROPIC_KEY = c.anthropic || '';
+    return !!(SUPABASE_URL && SUPABASE_KEY && ANTHROPIC_KEY);
+  } catch { return false; }
+}
+
+function saveConfig() {
+  const url = document.getElementById('setup-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('setup-key').value.trim();
+  const ant = document.getElementById('setup-anthropic').value.trim();
+  if (!url || !key || !ant) { showToast('Please fill in all fields'); return; }
+  SUPABASE_URL = url; SUPABASE_KEY = key; ANTHROPIC_KEY = ant;
+  localStorage.setItem(CFG_KEY, JSON.stringify({ url, key, anthropic: ant }));
+  showApp();
+}
+
+function showSetup() {
+  document.getElementById('setup-url').value = SUPABASE_URL;
+  document.getElementById('setup-key').value = SUPABASE_KEY;
+  document.getElementById('setup-anthropic').value = ANTHROPIC_KEY;
+  document.getElementById('setup-screen').style.display = 'block';
+  document.getElementById('main-app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'block';
+  loadReceipts();
+}
+
+// ── SUPABASE HELPERS ─────────────────────────────────────
+function sbHeaders() {
+  return { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+}
+
+async function sbUploadImage(path, blob) {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': blob.type },
+    body: blob
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error('Upload failed: ' + err);
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
+async function sbInsert(data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}`, {
+    method: 'POST',
+    headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('DB insert failed: ' + await res.text());
+  return res.json();
+}
+
+async function sbDelete(id) {
+  await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.${id}`, { method: 'DELETE', headers: sbHeaders() });
+}
+
+async function sbFetch(query = '') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?order=created_at.desc${query}`, { headers: sbHeaders() });
+  if (!res.ok) throw new Error('Fetch failed');
+  return res.json();
+}
+
+// ── STATE ────────────────────────────────────────────────
+let receipts = [];
+let query = '';
+let stopRequested = false;
+let isScanning = false;
+let lightboxUrl = '';
+let lightboxFilename = '';
+let totalUploadedBytes = 0;
+
+// ── LOAD ─────────────────────────────────────────────────
+async function loadReceipts() {
+  try {
+    receipts = await sbFetch();
+    updateStorageStats();
+    render();
+  } catch(e) {
+    showToast('Could not load receipts: ' + e.message);
+  }
+}
+
+function updateStorageStats() {
+  const totalBytes = receipts.reduce((sum, r) => sum + (r.file_size || 0), 0);
+  const mb = (totalBytes / 1024 / 1024).toFixed(1);
+  const pct = Math.min((totalBytes / (500 * 1024 * 1024)) * 100, 100).toFixed(1);
+  document.getElementById('stat-storage').textContent = mb + ' MB';
+  document.getElementById('storage-bar').style.width = pct + '%';
+  document.getElementById('stat-total').textContent = receipts.length;
+}
+
+// ── IMAGE PROCESSING ─────────────────────────────────────
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      const MAX = 1200;
+      if (width > MAX || height > MAX) {
+        const scale = MAX / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.75);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
+
+async function makeThumbnail(blob) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 120;
+      const scale = MAX / Math.max(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.src = url;
+  });
+}
+
+// ── SCANNING ─────────────────────────────────────────────
+function stopScan() { stopRequested = true; showToast('Stopping after current batch…'); }
+
+async function handleFiles(fileList) {
+  if (isScanning) { showToast('Already scanning — please wait'); return; }
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (!files.length) { showToast('Please upload image files'); return; }
+
+  isScanning = true; stopRequested = false;
+  totalUploadedBytes = 0;
+  document.getElementById('upload-zone').classList.add('disabled');
+  document.getElementById('scan-status').style.display = 'block';
+  document.getElementById('scan-title').textContent = `Scanning ${files.length} receipt${files.length>1?'s':''}…`;
+
+  let completed = 0, succeeded = 0, failed = 0;
+  const total = files.length;
+  const BATCH = 2;
+
+  for (let i = 0; i < files.length; i += BATCH) {
+    if (stopRequested) break;
+    const batch = files.slice(i, i + BATCH);
+    await Promise.all(batch.map(async file => {
+      await scanFile(file);
+      completed++;
+      const pct = Math.round(completed / total * 100);
+      document.getElementById('progress-fill').style.width = pct + '%';
+      document.getElementById('scan-progress-text').textContent = `${completed} of ${total}`;
+    }));
+    succeeded = receipts.filter(r => r.status === 'done').length;
+    failed = receipts.filter(r => r.status === 'error').length;
+    document.getElementById('scan-done').textContent = `✓ ${succeeded} done`;
+    const failEl = document.getElementById('scan-fail');
+    failEl.style.display = failed > 0 ? 'inline' : 'none';
+    failEl.textContent = `✗ ${failed} failed`;
+    document.getElementById('scan-size').textContent = formatBytes(totalUploadedBytes) + ' uploaded';
+    if (i + BATCH < files.length && !stopRequested) await sleep(600);
+  }
+
+  isScanning = false;
+  document.getElementById('upload-zone').classList.remove('disabled');
+  document.getElementById('scan-status').style.display = 'none';
+  document.getElementById('file-input').value = '';
+  updateStorageStats();
+  showToast(`✓ Done — ${succeeded} scanned, ${failed} failed`);
+}
+
+async function scanFile(file) {
+  // Compress image
+  let compressed, thumbnail, base64;
+  try {
+    compressed = await compressImage(file);
+    thumbnail = await makeThumbnail(compressed);
+    base64 = await blobToBase64(compressed);
+    totalUploadedBytes += compressed.size;
+  } catch(e) {
+    showToast('Could not process: ' + file.name); return;
+  }
+
+  // Add placeholder to UI
+  const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  const placeholder = {
+    id: tempId, status: 'scanning', thumbnail,
+    filename: file.name, created_at: new Date().toISOString(),
+    sender:'', receiver:'', amount:'', date_on_receipt:'', notes:''
+  };
+  receipts.unshift(placeholder);
+  render();
+
+  try {
+    // 1. Scan with Claude
+    const aiRes = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-calls': 'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 500,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+          { type: 'text', text: `Extract data from this receipt. Return ONLY raw JSON no markdown:
+{"sender":"payer name or empty","receiver":"payee name or empty","amount":"amount with currency or empty","date_on_receipt":"date or empty","notes":"transaction ID, bank, reference or description"}
+If not a receipt: {"error":"Not a receipt"}` }
+        ]}]
+      })
+    });
+
+    const aiData = await aiRes.json();
+    if (aiData.error) throw new Error(aiData.error.message || 'AI error');
+    const text = (aiData.content||[]).map(c=>c.text||'').join('');
+    const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+    if (parsed.error) throw new Error(parsed.error);
+
+    // 2. Upload image to Supabase storage
+    const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    const imageUrl = await sbUploadImage(path, compressed);
+
+    // 3. Save record to Supabase DB
+    const record = {
+      filename: file.name, image_url: imageUrl,
+      file_size: compressed.size, thumbnail,
+      sender: parsed.sender||'', receiver: parsed.receiver||'',
+      amount: parsed.amount||'', date_on_receipt: parsed.date_on_receipt||'',
+      notes: parsed.notes||'', status: 'done'
+    };
+    const [saved] = await sbInsert(record);
+    receipts = receipts.map(r => r.id === tempId ? {...saved, thumbnail} : r);
+
+  } catch(err) {
+    receipts = receipts.map(r => r.id === tempId
+      ? {...r, status:'error', error: err.message || 'Failed'} : r);
+  }
+  render();
+}
+
+// ── DELETE ───────────────────────────────────────────────
+async function deleteReceipt(id) {
+  if (!confirm('Delete this receipt?')) return;
+  try {
+    await sbDelete(id);
+    receipts = receipts.filter(r => r.id !== id);
+    updateStorageStats(); render(); showToast('Deleted');
+  } catch(e) { showToast('Delete failed: ' + e.message); }
+}
+
+async function clearAll() {
+  if (!confirm('Delete ALL receipts? This cannot be undone.')) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=neq.0`, { method: 'DELETE', headers: sbHeaders() });
+    receipts = []; updateStorageStats(); render(); showToast('All receipts deleted');
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+
+// ── EXPORT ───────────────────────────────────────────────
+function exportCSV() {
+  const done = receipts.filter(r => r.status === 'done');
+  if (!done.length) { showToast('No receipts to export'); return; }
+  const headers = ['Date','Sender','Receiver','Amount','Date on Receipt','Notes','Filename','Image URL'];
+  const rows = done.map(r =>
+    [r.created_at?.slice(0,10), r.sender, r.receiver, r.amount, r.date_on_receipt, r.notes, r.filename, r.image_url]
+      .map(v => `"${(v||'').replace(/"/g,'""')}"`).join(',')
+  );
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'receipts_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); showToast('CSV downloaded');
+}
+
+// ── LIGHTBOX ─────────────────────────────────────────────
+function openLightbox(url, filename) {
+  lightboxUrl = url; lightboxFilename = filename;
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox(e) {
+  if (e && e.target !== document.getElementById('lightbox') && !e.target.classList.contains('lightbox-close')) return;
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+async function downloadLightboxImage() {
+  try {
+    const res = await fetch(lightboxUrl);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = lightboxFilename || 'receipt.jpg';
+    a.click(); showToast('Downloading…');
+  } catch(e) { showToast('Download failed'); }
+}
+
+// ── SEARCH ───────────────────────────────────────────────
+function onSearch(val) {
+  query = val.toLowerCase().trim();
+  document.getElementById('search-clear').style.display = val ? 'block' : 'none';
+  render();
+}
+function clearSearch() { document.getElementById('search').value=''; onSearch(''); }
+
+// ── UI ───────────────────────────────────────────────────
+function onDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag'); }
+function onDragLeave() { document.getElementById('upload-zone').classList.remove('drag'); }
+function onDrop(e) { e.preventDefault(); onDragLeave(); handleFiles(e.dataTransfer.files); }
+
+function toggleNotes(id) {
+  const el = document.getElementById('notes_' + id);
+  const btn = document.getElementById('nbtn_' + id);
+  const open = el.style.display === 'block';
+  el.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? '▼ Notes' : '▲ Notes';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatBytes(b) { return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(0)+' KB'; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function fetchWithRetry(url, opts, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch(url, opts);
+    if (res.status === 529 || res.status === 503) { await sleep(2000*(i+1)); continue; }
+    return res;
+  }
+}
+
+function render() {
+  const filtered = query
+    ? receipts.filter(r => [r.sender,r.receiver,r.amount,r.date_on_receipt,r.notes,r.filename]
+        .some(v => v && v.toLowerCase().includes(query)))
+    : receipts;
+
+  document.getElementById('stat-total').textContent = receipts.filter(r=>r.status==='done').length;
+  document.getElementById('actions-row').style.display = receipts.length > 0 ? 'flex' : 'none';
+  document.getElementById('empty-state').style.display = receipts.length === 0 ? 'block' : 'none';
+
+  const lbl = document.getElementById('results-label');
+  lbl.textContent = query
+    ? (filtered.length === 0 ? `No results for "${query}"` : `${filtered.length} result${filtered.length!==1?'s':''} for "${query}"`)
+    : `${receipts.length} receipt${receipts.length!==1?'s':''}`;
+
+  document.getElementById('receipt-list').innerHTML = filtered.map(r => `
+    <div class="receipt-card">
+      <div class="card-top">
+        ${r.thumbnail
+          ? `<img class="receipt-thumb" src="${esc(r.thumbnail)}" onclick="openLightbox('${esc(r.image_url||r.thumbnail)}','${esc(r.filename)}')" title="Tap to view full image"/>`
+          : `<div style="width:64px;height:64px;background:#F1F5F9;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px">🧾</div>`
+        }
+        <div class="receipt-body">
+          <div class="receipt-top">
+            <span class="badge badge-${r.status||'done'}">${r.status==='scanning'?'Scanning…':r.status==='error'?'Failed':'Scanned'}</span>
+            <span class="receipt-date">${esc((r.created_at||'').slice(0,10))}</span>
+          </div>
+          ${r.status==='done'||!r.status ? `
+            <div class="fields">
+              ${r.sender?`<div class="field-item"><span class="field-label">FROM</span><span class="field-value">${esc(r.sender)}</span></div>`:''}
+              ${r.receiver?`<div class="field-item"><span class="field-label">TO</span><span class="field-value">${esc(r.receiver)}</span></div>`:''}
+              ${r.amount?`<div class="field-item"><span class="field-label">AMOUNT</span><span class="field-value amount">${esc(r.amount)}</span></div>`:''}
+              ${r.date_on_receipt?`<div class="field-item"><span class="field-label">DATE</span><span class="field-value">${esc(r.date_on_receipt)}</span></div>`:''}
+            </div>
+          `:''}
+          ${r.status==='scanning'?`<div style="font-size:13px;color:#94A3B8;margin-top:4px">Reading receipt…</div>`:''}
+          ${r.status==='error'?`<div style="font-size:13px;color:#DC2626;margin-top:4px">${esc(r.error||'Failed')}</div>`:''}
+        </div>
+        <button class="receipt-delete" onclick="deleteReceipt('${r.id}')" title="Delete">×</button>
+      </div>
+      ${(r.status==='done'||!r.status) && r.image_url ? `
+        <div class="card-actions">
+          <button class="download-btn" onclick="openLightbox('${esc(r.image_url)}','${esc(r.filename)}')">👁 View Image</button>
+          <button class="download-btn" onclick="downloadImage('${esc(r.image_url)}','${esc(r.filename)}')">⬇ Download</button>
+          ${r.notes?`<button class="notes-toggle" id="nbtn_${r.id}" onclick="toggleNotes('${r.id}')">▼ Notes</button>`:''}
+        </div>
+        ${r.notes?`<div class="receipt-notes" id="notes_${r.id}">${esc(r.notes)}</div>`:''}
+      `:''}
+    </div>
+  `).join('');
+}
+
+async function downloadImage(url, filename) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || 'receipt.jpg';
+    a.click(); showToast('Downloading…');
+  } catch(e) { showToast('Download failed'); }
+}
+
+// ── INIT ─────────────────────────────────────────────────
+if (loadConfig()) { showApp(); } else {
+  document.getElementById('setup-screen').style.display = 'block';
+}
+</script>
+</body>
+</html>
